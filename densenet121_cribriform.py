@@ -13,20 +13,12 @@ from sklearn.metrics import log_loss
 
 from custom_layers.scale_layer import Scale
 
+import argparse
 from load_cribriform import load_cribriform_data
 import metrics
 
 def densenet121_model(img_rows, img_cols, color_type=1, nb_dense_block=4, growth_rate=32, nb_filter=64, reduction=0.5, dropout_rate=0.0, weight_decay=1e-4, num_classes=None):
     '''
-    DenseNet 121 Model for Keras
-
-    Model Schema is based on 
-    https://github.com/flyyufelix/DenseNet-Keras
-
-    ImageNet Pretrained Weights 
-    Theano: https://drive.google.com/open?id=0Byy2AcGyEVxfMlRYb3YzV210VzQ
-    TensorFlow: https://drive.google.com/open?id=0Byy2AcGyEVxfSTA4SHJVOHNuTXc
-
     # Arguments
         nb_dense_block: number of dense blocks to add to end
         growth_rate: number of filters to add per dense block
@@ -36,8 +28,6 @@ def densenet121_model(img_rows, img_cols, color_type=1, nb_dense_block=4, growth
         weight_decay: weight decay factor
         classes: optional number of classes to classify images
         weights_path: path to pre-trained weights
-    # Returns
-        A Keras model instance.
     '''
     eps = 1.1e-5
 
@@ -108,7 +98,7 @@ def densenet121_model(img_rows, img_cols, color_type=1, nb_dense_block=4, growth
 
     # Learning rate is changed to 0.001
     sgd = SGD(lr=1e-3, decay=1e-6, momentum=0.9, nesterov=True)
-    model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy', metrics.precision, metrics.recall])
+    model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy', metrics.precision, metrics.recall, metrics.fscore])
 
     return model
 
@@ -207,16 +197,26 @@ def dense_block(x, stage, nb_layers, nb_filter, growth_rate, dropout_rate=None, 
 
 if __name__ == '__main__':
 
-    # Example to fine-tune on 3000 samples from Cifar10
+    parser = argparse.ArgumentParser(description='cribriform densenet parameters')
+    parser.add_argument('-f', '--fold',
+                        type=int,
+                        choices=[1,2,3,4],
+                        default=1,
+                        help='indicate fold number for train and eval')
+    args = parser.parse_args()
 
+    # Fine-tune on latest cribriform images
     img_rows, img_cols = 256, 256 # Resolution of inputs
     channel = 3
     num_classes = 2
     batch_size = 16 
     nb_epoch = 10
+    fold = args.fold # fold 1, 2, 3, 4
+    
+    print('Training fold 0%d' % fold)
 
     # Load Cifar10 data. Please implement your own load_data() module for your own dataset
-    X_train, Y_train, X_valid, Y_valid = load_cribriform_data(img_rows, img_cols)
+    X_train, Y_train, X_valid, Y_valid = load_cribriform_data(img_rows, img_cols, fold)
 
     # Load our model
     model = densenet121_model(img_rows=img_rows, img_cols=img_cols, color_type=channel, num_classes=num_classes)
@@ -227,13 +227,20 @@ if __name__ == '__main__':
               nb_epoch=nb_epoch,
               shuffle=True,
               verbose=1,
-              validation_split=0.2,
+              validation_data=(X_valid, Y_valid),
               )
 
     print("Training Complete!")
 
+    # Save our model weights
+    model.save_weights('trained_models/densenet121_weights_tf_fold_0%d.h5' % fold)
+
     # Make predictions
     predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
+
+    # Cross-entropy loss score
+    score = log_loss(Y_valid, predictions_valid)
+    print('Cross-entropy loss score: ' + str(score))
 
     # Evaluate
     evaluate_valid = model.evaluate(X_valid, Y_valid, batch_size=batch_size, verbose=1)
@@ -241,6 +248,4 @@ if __name__ == '__main__':
     print('Accuracy: ' + str(evaluate_valid[1]))
     print('Precision: ' + str(evaluate_valid[2]))
     print('Recall: ' + str(evaluate_valid[3]))
-
-    # Cross-entropy loss score
-    score = log_loss(Y_valid, predictions_valid)
+    print('F-score: ' + str(evaluate_valid[4]))

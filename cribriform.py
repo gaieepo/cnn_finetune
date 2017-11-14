@@ -1,10 +1,11 @@
 from __future__ import absolute_import
 
+from sklearn.cross_validation import train_test_split
 from keras.preprocessing.image import img_to_array, load_img
 import numpy as np
 import os
 
-def convert_dataset(split_name, filenames, class_names_to_ids, dataset_dir):
+def convert_dataset(split_name, filenames, class_names_to_ids):
     """ Preprocess image to np array
     """
     assert split_name in ['train', 'test']
@@ -24,23 +25,26 @@ def convert_dataset(split_name, filenames, class_names_to_ids, dataset_dir):
     return data, labels
 
 
-def load_data(dataset_dir='/diskb/tmp/gai/cribriform_256_fold_04_20170523'):
+def load_data(fold):
     """ Load cribriform data from raw jpeg images
     
     use keras.preprosessing.image.[load_img and img_to_array]
     
     """
-    num_train_samples = 808 + 352 # pos+neg
 
-    dirname = '/diskb/tmp/gai/0916_images'
+    dirname = '/diskb/tmp/gai/data_1106_256_180'
+    train_positive = os.path.join(dirname, 'lists/list_fold_0%d_train_positive.txt' % fold)
+    train_negative = os.path.join(dirname, 'lists/list_fold_0%d_train_negative.txt' % fold)
+    test_positive = os.path.join(dirname, 'lists/list_fold_0%d_test_positive.txt' % fold)
+    test_negative = os.path.join(dirname, 'lists/list_fold_0%d_test_negative.txt' % fold)
 
-    with open(os.path.join(dirname, 'lists/list_fold_04_train_positive.txt')) as f:
+    with open(train_positive) as f:
         train_data_pos = [[l, 0] for l in f.readlines()]
-    with open(os.path.join(dirname, 'lists/list_fold_04_train_negative.txt')) as f:
+    with open(train_negative) as f:
         train_data_neg = [[l, 1] for l in f.readlines()]
-    with open(os.path.join(dirname, 'lists/list_fold_04_test_positive.txt')) as f:
+    with open(test_positive) as f:
         test_data_pos = [[l, 0] for l in f.readlines()]
-    with open(os.path.join(dirname, 'lists/list_fold_04_test_negative.txt')) as f:
+    with open(test_negative) as f:
         test_data_neg = [[l, 1] for l in f.readlines()]
 
     train_data_pos.extend(train_data_neg)
@@ -64,8 +68,8 @@ def load_data(dataset_dir='/diskb/tmp/gai/cribriform_256_fold_04_20170523'):
     print("#Testing:"+str(len(testing_filenames)))
 
     # convert the training and test sets
-    x_train, y_train = convert_dataset('train', training_filenames, class_names_to_ids, dataset_dir)
-    x_test, y_test = convert_dataset('test', testing_filenames, class_names_to_ids, dataset_dir)
+    x_train, y_train = convert_dataset('train', training_filenames, class_names_to_ids)
+    x_test, y_test = convert_dataset('test', testing_filenames, class_names_to_ids)
 
     # write the labels file
     labels_to_class_names = dict(zip(range(len(class_names)), class_names))

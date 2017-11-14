@@ -59,13 +59,32 @@ def recall(y_true, y_pred):
     recall = true_positives / (possible_positives + K.epsilon())
     return recall
 
-# Aliases
+def fbeta_score(y_true, y_pred, beta):
+    if beta < 0:
+        raise ValueError('The lowest choosable beta is zero (only precision).')
 
+    # If there are no true positives. fix the F score at 0 like sklearn
+    if K.sum(K.round(K.clip(y_true, 0, 1))) == 0:
+        return 0
+
+    p = precision(y_true, y_pred)
+    r = recall(y_true, y_pred)
+    bb = beta ** 2
+    fbeta_score = (1 + bb) * (p * r) / (bb * p + r + K.epsilon())
+    return fbeta_score
+
+def fmeasure(y_true, y_pred):
+    '''Calculates the f-measure, the harmonic mean of precision and recall
+    '''
+    return fbeta_score(y_true, y_pred, beta=1)
+
+# Aliases
 mse = MSE = mean_squared_error
 mae = MAE = mean_absolute_error
 mape = MAPE = mean_absolute_percentage_error
 msle = MSLE = mean_squared_logarithmic_error
 cosine = cosine_proximity
+fscore = fmeasure
 
 
 def serialize(metric):

@@ -90,3 +90,7 @@ ENV/
 
 *.h5
 *.swp
+*.png
+*.jpg
+*.jpeg
+test*
