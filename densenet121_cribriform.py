@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 
+from numpy.random import seed 
+seed(1) 
+from tensorflow import set_random_seed 
+set_random_seed(2)
+
 from keras.optimizers import SGD
 from keras.layers import Input, merge, ZeroPadding2D
 from keras.layers.core import Dense, Dropout, Activation
@@ -16,6 +21,7 @@ from custom_layers.scale_layer import Scale
 import argparse
 from load_cribriform import load_cribriform_data
 import metrics
+from time import strftime, localtime
 
 def densenet121_model(img_rows, img_cols, color_type=1, nb_dense_block=4, growth_rate=32, nb_filter=64, reduction=0.5, dropout_rate=0.0, weight_decay=1e-4, num_classes=None):
     '''
@@ -206,12 +212,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Fine-tune on latest cribriform images
-    img_rows, img_cols = 256, 256 # Resolution of inputs
+    img_rows, img_cols = 224, 224 # Resolution of inputs (keep original 224 rather than 256)
     channel = 3
     num_classes = 2
     batch_size = 16 
     nb_epoch = 10
     fold = args.fold # fold 1, 2, 3, 4
+    str_time = strftime('%Y%m%d_%H%M', localtime())
     
     print('Training fold 0%d' % fold)
 
@@ -233,7 +240,7 @@ if __name__ == '__main__':
     print("Training Complete!")
 
     # Save our model weights
-    model.save_weights('trained_models/densenet121_weights_tf_fold_0%d.h5' % fold)
+    model.save_weights('trained_models/densenet121_weights_tf_fold_0' + str(fold) + '_' + str_time + '.h5')
 
     # Make predictions
     predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
