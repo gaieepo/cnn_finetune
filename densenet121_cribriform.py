@@ -14,8 +14,6 @@ from keras.layers.normalization import BatchNormalization
 from keras.models import Model
 import keras.backend as K
 
-from sklearn.metrics import log_loss
-
 from custom_layers.scale_layer import Scale
 
 import argparse
@@ -23,7 +21,7 @@ from load_cribriform import load_cribriform_data
 import metrics
 from time import strftime, localtime
 
-def densenet121_model(img_rows, img_cols, color_type=1, nb_dense_block=4, growth_rate=32, nb_filter=64, reduction=0.5, dropout_rate=0.0, weight_decay=1e-4, num_classes=None):
+def densenet121_model(img_rows, img_cols, color_type=1, nb_dense_block=4, growth_rate=32, nb_filter=64, reduction=0.5, dropout_rate=0.0, weight_decay=1e-4, num_classes=None, freeze=False):
     '''
     # Arguments
         nb_dense_block: number of dense blocks to add to end
@@ -102,8 +100,13 @@ def densenet121_model(img_rows, img_cols, color_type=1, nb_dense_block=4, growth
 
     model = Model(img_input, x_newfc)
 
-    # Learning rate is changed to 0.001
-    sgd = SGD(lr=1e-3, decay=1e-6, momentum=0.9, nesterov=True)
+    # Freeze layer
+    if freeze:
+        for layer in model.layers[:-3]:
+            layer.trainable = False
+
+    # Learning rate is changed to 0.0001
+    sgd = SGD(lr=1e-4, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy', metrics.precision, metrics.recall, metrics.fscore])
 
     return model
@@ -225,32 +228,71 @@ if __name__ == '__main__':
     # Load Cifar10 data. Please implement your own load_data() module for your own dataset
     X_train, Y_train, X_valid, Y_valid = load_cribriform_data(img_rows, img_cols, fold)
 
-    # Load our model
+    # Load our model (nonfreeze)
     model = densenet121_model(img_rows=img_rows, img_cols=img_cols, color_type=channel, num_classes=num_classes)
 
-    # Start Fine-tuning
+    # Start Fine-tuning (nonfreeze)
     model.fit(X_train, Y_train,
               batch_size=batch_size,
               nb_epoch=nb_epoch,
               shuffle=True,
-              verbose=1,
+              verbose=2,
+              validation_data=(X_valid, Y_valid),
+              )
+    print('Training Complete!')
+
+    # Save our model weights
+    model.save_weights('trained_models/densenet121_weights_tf_fold_0' + str(fold) + '_' + str_time + '_nonfreeze.h5')
+    print('Model weights are saved!')
+
+    # Evaluate our model
+    evaluate_valid = model.evaluate(X_valid, Y_valid, batch_size=batch_size, verbose=1)
+    print('Nonfreeze model evaluation:')
+    print('Loss: ' + str(evaluate_valid[0]))
+    print('Accuracy: ' + str(evaluate_valid[1]))
+    print('Precision: ' + str(evaluate_valid[2]))
+    print('Recall: ' + str(evaluate_valid[3]))
+    print('F-score: ' + str(evaluate_valid[4]))
+
+    # Delete model
+    del model
+
+    # Load our model (freeze) - this model is only used as an intermediate step not evaluated afterwards
+    model = densenet121_model(img_rows=img_rows, img_cols=img_cols, color_type=channel, num_classes=num_classes, freeze=True)
+
+    # Start Fine-tuning (freeze) - only fine tune last Dense layer
+    model.fit(X_train, Y_train,
+              batch_size=batch_size,
+              nb_epoch=nb_epoch,
+              shuffle=True,
+              verbose=2,
               validation_data=(X_valid, Y_valid),
               )
 
-    print("Training Complete!")
+    # Un-freeze layers and re-compile model
+    for layer in model.layers[:-3]:
+        layer.trainable = True
+
+    sgd = SGD(lr=1e-4, decay=1e-6, momentum=0.9, nesterov=True)
+    model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy', metrics.precision, metrics.recall, metrics.fscore])
+
+    # Start Fine-tuning (nonfreeze) - fine tune all layers
+    model.fit(X_train, Y_train,
+              batch_size=batch_size,
+              nb_epoch=nb_epoch,
+              shuffle=True,
+              verbose=2,
+              validation_data=(X_valid, Y_valid),
+              )
+    print('Training Complete!')
 
     # Save our model weights
-    model.save_weights('trained_models/densenet121_weights_tf_fold_0' + str(fold) + '_' + str_time + '.h5')
+    model.save_weights('trained_models/densenet121_weights_tf_fold_0' + str(fold) + '_' + str_time + '_freeze.h5')
+    print('Model weights are saved!')
 
-    # Make predictions
-    predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
-
-    # Cross-entropy loss score
-    score = log_loss(Y_valid, predictions_valid)
-    print('Cross-entropy loss score: ' + str(score))
-
-    # Evaluate
+    # Evaluate our model
     evaluate_valid = model.evaluate(X_valid, Y_valid, batch_size=batch_size, verbose=1)
+    print('Freeze model evaluation:')
     print('Loss: ' + str(evaluate_valid[0]))
     print('Accuracy: ' + str(evaluate_valid[1]))
     print('Precision: ' + str(evaluate_valid[2]))
