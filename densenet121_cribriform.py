@@ -105,8 +105,8 @@ def densenet121_model(img_rows, img_cols, color_type=1, nb_dense_block=4, growth
         for layer in model.layers[:-3]:
             layer.trainable = False
 
-    # Learning rate is changed to 0.0001
-    sgd = SGD(lr=1e-4, decay=1e-6, momentum=0.9, nesterov=True)
+    # Learning rate is changed to 0.001
+    sgd = SGD(lr=1e-3, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy', metrics.precision, metrics.recall, metrics.fscore])
 
     return model
@@ -263,17 +263,26 @@ if __name__ == '__main__':
     # Start Fine-tuning (freeze) - only fine tune last Dense layer
     model.fit(X_train, Y_train,
               batch_size=batch_size,
-              nb_epoch=nb_epoch,
+              nb_epoch=4, # reduce freezing training epoch
               shuffle=True,
               verbose=2,
               validation_data=(X_valid, Y_valid),
               )
 
+    # (Intermediate) Evaluate our model
+    evaluate_valid = model.evaluate(X_valid, Y_valid, batch_size=batch_size, verbose=1)
+    print('Freeze model evaluation:')
+    print('Loss: ' + str(evaluate_valid[0]))
+    print('Accuracy: ' + str(evaluate_valid[1]))
+    print('Precision: ' + str(evaluate_valid[2]))
+    print('Recall: ' + str(evaluate_valid[3]))
+    print('F-score: ' + str(evaluate_valid[4]))
+
     # Un-freeze layers and re-compile model
     for layer in model.layers[:-3]:
         layer.trainable = True
 
-    sgd = SGD(lr=1e-4, decay=1e-6, momentum=0.9, nesterov=True)
+    sgd = SGD(lr=1e-3, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy', metrics.precision, metrics.recall, metrics.fscore])
 
     # Start Fine-tuning (nonfreeze) - fine tune all layers
